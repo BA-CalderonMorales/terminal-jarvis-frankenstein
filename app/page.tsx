@@ -445,6 +445,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           }
         }, 100);
       } else {
+        if (response.status === 500 && data.error?.includes('401') && data.error?.includes('API key')) {
+          throw new Error('E2B API key is missing or invalid. Please check your .env.local file and add a valid E2B_API_KEY. Get one at https://e2b.dev');
+        }
         throw new Error(data.error || 'Unknown error');
       }
     } catch (error: any) {

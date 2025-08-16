@@ -1,6 +1,6 @@
 {
   "name": "open-lovable",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -44,13 +44,13 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.3",
-    "tailwindcss": "^4.1.11",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.4.0",
     "typescript": "^5"
   }
 }
