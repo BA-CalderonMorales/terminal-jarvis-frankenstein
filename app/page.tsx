@@ -141,16 +141,22 @@ export default function AISandboxPage() {
     const initializePage = async () => {
       // Clear old conversation
       try {
-        await fetch('/api/conversation-state', {
+        const response = await fetch('/api/conversation-state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'clear-old' })
         });
-        console.log('[home] Cleared old conversation data on mount');
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[home]', data.message || 'Conversation state processed');
+        } else {
+          console.warn('[home] Unexpected response when clearing conversation:', response.status);
+        }
       } catch (error) {
-        console.error('[ai-sandbox] Failed to clear old conversation:', error);
+        console.error('[home] Network error clearing conversation:', error);
         if (isMounted) {
-          addChatMessage('Failed to clear old conversation data.', 'error');
+          addChatMessage('Network error clearing conversation data.', 'error');
         }
       }
       
@@ -426,9 +432,14 @@ export default function AISandboxPage() {
               if (restartData.success) {
                 console.log('[createSandbox] Vite server started successfully');
               }
+            } else if (restartResponse.status === 400) {
+              // 400 is expected immediately after sandbox creation
+              console.log('[createSandbox] Vite restart not needed yet (sandbox still initializing)');
+            } else {
+              console.warn('[createSandbox] Unexpected response restarting Vite:', restartResponse.status);
             }
           } catch (error) {
-            console.error('[createSandbox] Error starting Vite server:', error);
+            console.error('[createSandbox] Network error starting Vite server:', error);
           }
         }, 2000);
         
@@ -497,7 +508,16 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to apply code: ${response.statusText}`);
+        // For streaming endpoints, we can't use handleApiResponse since we need the body
+        let errorMessage = response.statusText;
+        try {
+          const errorText = await response.text();
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If parsing fails, use statusText
+        }
+        throw new Error(`Failed to apply code: ${errorMessage}`);
       }
       
       // Handle streaming response
@@ -533,7 +553,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   } else if (data.message.includes('Creating files') || data.message.includes('Applying')) {
                     setCodeApplicationState({ 
                       stage: 'applying',
-                      filesGenerated: results.filesCreated 
+                      filesGenerated: data.filesCreated || [] 
                     });
                   }
                   break;
@@ -2852,6 +2872,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       filter: 'drop-shadow(rgba(249, 224, 184, 0.3) -0.731317px -0.731317px 35.6517px)'
                     }}
                     autoFocus
+                    suppressHydrationWarning
                   />
                   <div 
                     aria-hidden="true" 
@@ -2965,6 +2986,7 @@ Focus on the key sections and content, making it clean and modern.`;
                           }}
                           placeholder="Add more details: specific features, color preferences..."
                           className="w-full px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition-all duration-200"
+                          suppressHydrationWarning
                         />
                       </div>
                     </div>
@@ -2991,6 +3013,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   style={{
                     boxShadow: '0 0 0 1px #e3e1de66, 0 1px 2px #5f4a2e14'
                   }}
+                  suppressHydrationWarning
                 >
                   {appConfig.ai.availableModels.map(model => (
                     <option key={model} value={model}>
@@ -3027,6 +3050,7 @@ Focus on the key sections and content, making it clean and modern.`;
               router.push(`/?${params.toString()}`);
             }}
             className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#36322F] focus:border-transparent"
+            suppressHydrationWarning
           >
             {appConfig.ai.availableModels.map(model => (
               <option key={model} value={model}>
@@ -3039,6 +3063,7 @@ Focus on the key sections and content, making it clean and modern.`;
             onClick={() => createSandbox()}
             size="sm"
             title="Create new sandbox"
+            suppressHydrationWarning
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3049,6 +3074,7 @@ Focus on the key sections and content, making it clean and modern.`;
             onClick={reapplyLastGeneration}
             size="sm"
             title="Re-apply last generation"
+            suppressHydrationWarning
             disabled={!conversationContext.lastGeneratedCode || !sandboxData}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3329,6 +3355,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 onClick={sendChatMessage}
                 className="absolute right-2 bottom-2 p-2 bg-[#36322F] text-white rounded-[10px] hover:bg-[#4a4542] [box-shadow:inset_0px_-2px_0px_0px_#171310,_0px_1px_6px_0px_rgba(58,_33,_8,_58%)] hover:translate-y-[1px] hover:scale-[0.98] hover:[box-shadow:inset_0px_-1px_0px_0px_#171310,_0px_1px_3px_0px_rgba(58,_33,_8,_40%)] active:translate-y-[2px] active:scale-[0.97] active:[box-shadow:inset_0px_1px_1px_0px_#171310,_0px_1px_2px_0px_rgba(58,_33,_8,_30%)] transition-all duration-200"
                 title="Send message (Enter)"
+                suppressHydrationWarning
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -3351,6 +3378,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       : 'text-gray-300 hover:text-white hover:bg-gray-700'
                   }`}
                   title="Code"
+                  suppressHydrationWarning
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -3364,6 +3392,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       : 'text-gray-300 hover:text-white hover:bg-gray-700'
                   }`}
                   title="Preview"
+                  suppressHydrationWarning
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

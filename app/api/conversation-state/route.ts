@@ -60,9 +60,9 @@ export async function POST(request: NextRequest) {
         // Clear old conversation data but keep recent context
         if (!global.conversationState) {
           return NextResponse.json({
-            success: false,
-            error: 'No active conversation to clear'
-          }, { status: 400 });
+            success: true,
+            message: 'No active conversation to clear (expected)'
+          });
         }
         
         // Keep only recent data
@@ -82,9 +82,9 @@ export async function POST(request: NextRequest) {
       case 'update':
         if (!global.conversationState) {
           return NextResponse.json({
-            success: false,
-            error: 'No active conversation to update'
-          }, { status: 400 });
+            success: true,
+            message: 'No active conversation to update (will be created when needed)'
+          });
         }
         
         // Update specific fields if provided
