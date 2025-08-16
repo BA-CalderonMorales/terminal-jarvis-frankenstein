@@ -52,5 +52,8 @@
     "postcss": "^8.4.31",
     "tailwindcss": "^3.4.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "prismjs": ">=1.30.0"
   }
 }
