@@ -22,6 +22,7 @@ import {
 } from '@/lib/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import CodeApplicationProgress, { type CodeApplicationState } from '@/components/CodeApplicationProgress';
+import { normalizeUrl } from '@/lib/url-validator';
 
 interface SandboxData {
   sandboxId: string;
@@ -119,7 +120,7 @@ export default function AISandboxPage() {
     thinkingText?: string;
     thinkingDuration?: number;
     currentFile?: { path: string; content: string; type: string };
-    files: Array<{ path: string; content: string; type: string; completed: boolean }>;
+    files: Array<{ path: string; content: string; type: string; completed: boolean; edited?: boolean }>;
     lastProcessedPosition: number;
     isEdit?: boolean;
   }>({
@@ -648,7 +649,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           results: finalData.results,
           explanation: finalData.explanation,
           structure: finalData.structure,
-          message: finalData.message
+          message: finalData.message,
+          autoCompleted: finalData.autoCompleted,
+          autoCompletedComponents: finalData.autoCompletedComponents,
+          warning: finalData.warning,
+          missingImports: finalData.missingImports,
+          debug: finalData.debug
         };
         
         if (data.success) {
@@ -2375,30 +2381,52 @@ Focus on the key sections and content, making it clean and modern while preservi
     e.preventDefault();
     if (!homeUrlInput.trim()) return;
     
+    // Validate URL format only (no network requests)
+    const normalizedUrl = normalizeUrl(homeUrlInput.trim());
+    
+    // Basic format validation
+    try {
+      new URL(normalizedUrl);
+    } catch {
+      setChatMessages([{
+        content: '❌ Please enter a valid website URL to clone (e.g., firecrawl.dev, stripe.com, or github.com). \n\nTerminal Jarvis Frankenstein creates React apps by analyzing existing websites, so we need a real URL to get started!',
+        type: 'error',
+        timestamp: new Date()
+      }]);
+      return;
+    }
+    
+    // Use the normalized URL directly without network validation
+    const finalUrl = normalizedUrl;
+    
+    setChatMessages([{
+      content: `✅ Starting to clone ${finalUrl.replace(/^https?:\/\//i, '')}...`,
+      type: 'system',
+      timestamp: new Date()
+    }]);
+    
+    // Continue with the original flow using validated URL
+    continueWithValidatedUrl(finalUrl);
+  };
+
+  const continueWithValidatedUrl = (finalUrl: string) => {
     setHomeScreenFading(true);
     
     // Clear messages and immediately show the cloning message
     setChatMessages([]);
-    let displayUrl = homeUrlInput.trim();
-    if (!displayUrl.match(/^https?:\/\//i)) {
-      displayUrl = 'https://' + displayUrl;
-    }
-    // Remove protocol for cleaner display
-    const cleanUrl = displayUrl.replace(/^https?:\/\//i, '');
+    const cleanUrl = finalUrl.replace(/^https?:\/\//i, '');
     addChatMessage(`Starting to clone ${cleanUrl}...`, 'system');
     
     // Start creating sandbox and capturing screenshot immediately in parallel
     const sandboxPromise = !sandboxData ? createSandbox(true) : Promise.resolve();
     
     // Only capture screenshot if we don't already have a sandbox (first generation)
-    // After sandbox is set up, skip the screenshot phase for faster generation
     if (!sandboxData) {
-      captureUrlScreenshot(displayUrl);
+      captureUrlScreenshot(finalUrl);
     }
     
     // Set loading stage immediately before hiding home screen
     setLoadingStage('gathering');
-    // Also ensure we're on preview tab to show the loading overlay
     setActiveTab('preview');
     
     setTimeout(async () => {
@@ -2408,24 +2436,16 @@ Focus on the key sections and content, making it clean and modern while preservi
       // Wait for sandbox to be ready (if it's still creating)
       await sandboxPromise;
       
-      // Now start the clone process which will stream the generation
-      setUrlInput(homeUrlInput);
-      setUrlOverlayVisible(false); // Make sure overlay is closed
+      // Now start the clone process with validated URL
+      setUrlInput(finalUrl);
+      setUrlOverlayVisible(false);
       setUrlStatus(['Scraping website content...']);
       
       try {
-        // Scrape the website
-        let url = homeUrlInput.trim();
-        if (!url.match(/^https?:\/\//i)) {
-          url = 'https://' + url;
-        }
-        
-        // Screenshot is already being captured in parallel above
-        
         const scrapeResponse = await fetch('/api/scrape-url-enhanced', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url: finalUrl })
         });
         
         if (!scrapeResponse.ok) {
@@ -2442,13 +2462,12 @@ Focus on the key sections and content, making it clean and modern while preservi
         
         // Clear preparing design state and switch to generation tab
         setIsPreparingDesign(false);
-        setUrlScreenshot(null); // Clear screenshot when starting generation
-        setTargetUrl(''); // Clear target URL
+        setUrlScreenshot(null);
+        setTargetUrl('');
         
         // Update loading stage to planning
         setLoadingStage('planning');
         
-        // Brief pause before switching to generation tab
         setTimeout(() => {
           setLoadingStage('generating');
           setActiveTab('generation');
@@ -2458,14 +2477,14 @@ Focus on the key sections and content, making it clean and modern while preservi
         setConversationContext(prev => ({
           ...prev,
           scrapedWebsites: [...prev.scrapedWebsites, {
-            url: url,
+            url: finalUrl,
             content: scrapeData,
             timestamp: new Date()
           }],
-          currentProject: `${url} Clone`
+          currentProject: `${finalUrl} Clone`
         }));
         
-        const prompt = `I want to recreate the ${url} website as a complete React application based on the scraped content below.
+        const prompt = `I want to recreate the ${finalUrl} website as a complete React application based on the scraped content below.
 
 ${JSON.stringify(scrapeData, null, 2)}
 
@@ -2497,34 +2516,31 @@ Focus on the key sections and content, making it clean and modern.`;
           isThinking: false,
           thinkingText: undefined,
           thinkingDuration: undefined,
-          // Keep previous files until new ones are generated
           files: prev.files || [],
           currentFile: undefined,
           lastProcessedPosition: 0
         }));
         
-        const aiResponse = await fetch('/api/generate-ai-code-stream', {
+        // Generate code using the enhanced model with streaming
+        const response = await fetch('/api/generate-ai-code-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             prompt,
-            model: aiModel,
-            context: {
-              sandboxId: sandboxData?.sandboxId,
-              structure: structureContent,
-              conversationContext: conversationContext
-            }
+            model: aiModel
           })
         });
         
-        if (!aiResponse.ok || !aiResponse.body) {
-          throw new Error('Failed to generate code');
+        if (!response.body) {
+          throw new Error('No response body received');
         }
         
-        const reader = aiResponse.body.getReader();
+        const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let generatedCode = '';
-        let explanation = '';
+        
+        let accumulatedCode = '';
+        let isCollectingFiles = false;
+        let filesBuffer = '';
         
         while (true) {
           const { done, value } = await reader.read();
@@ -2538,222 +2554,113 @@ Focus on the key sections and content, making it clean and modern.`;
               try {
                 const data = JSON.parse(line.slice(6));
                 
-                if (data.type === 'status') {
-                  setGenerationProgress(prev => ({ ...prev, status: data.message }));
-                } else if (data.type === 'thinking') {
-                  setGenerationProgress(prev => ({ 
-                    ...prev, 
+                if (data.type === 'thinking') {
+                  setGenerationProgress(prev => ({
+                    ...prev,
                     isThinking: true,
-                    thinkingText: (prev.thinkingText || '') + data.text
-                  }));
-                } else if (data.type === 'thinking_complete') {
-                  setGenerationProgress(prev => ({ 
-                    ...prev, 
-                    isThinking: false,
+                    thinkingText: data.content,
                     thinkingDuration: data.duration
                   }));
-                } else if (data.type === 'conversation') {
-                  // Add conversational text to chat only if it's not code
-                  let text = data.text || '';
-                  
-                  // Remove package tags from the text
-                  text = text.replace(/<package>[^<]*<\/package>/g, '');
-                  text = text.replace(/<packages>[^<]*<\/packages>/g, '');
-                  
-                  // Filter out any XML tags and file content that slipped through
-                  if (!text.includes('<file') && !text.includes('import React') && 
-                      !text.includes('export default') && !text.includes('className=') &&
-                      text.trim().length > 0) {
-                    addChatMessage(text.trim(), 'ai');
-                  }
-                } else if (data.type === 'stream' && data.raw) {
-                  setGenerationProgress(prev => {
-                    const newStreamedCode = prev.streamedCode + data.text;
-                    
-                    // Tab is already switched after scraping
-                    
-                    const updatedState = { 
-                      ...prev, 
-                      streamedCode: newStreamedCode,
-                      isStreaming: true,
-                      isThinking: false,
-                      status: 'Generating code...'
-                    };
-                    
-                    // Process complete files from the accumulated stream
-                    const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
-                    let match;
-                    const processedFiles = new Set(prev.files.map(f => f.path));
-                    
-                    while ((match = fileRegex.exec(newStreamedCode)) !== null) {
-                      const filePath = match[1];
-                      const fileContent = match[2];
-                      
-                      // Only add if we haven't processed this file yet
-                      if (!processedFiles.has(filePath)) {
-                        const fileExt = filePath.split('.').pop() || '';
-                        const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
-                                        fileExt === 'css' ? 'css' :
-                                        fileExt === 'json' ? 'json' :
-                                        fileExt === 'html' ? 'html' : 'text';
-                        
-                        // Check if file already exists
-                        const existingFileIndex = updatedState.files.findIndex(f => f.path === filePath);
-                        
-                        if (existingFileIndex >= 0) {
-                          // Update existing file and mark as edited
-                          updatedState.files = [
-                            ...updatedState.files.slice(0, existingFileIndex),
-                            {
-                              ...updatedState.files[existingFileIndex],
-                              content: fileContent.trim(),
-                              type: fileType,
-                              completed: true,
-                              edited: true
-                            },
-                            ...updatedState.files.slice(existingFileIndex + 1)
-                          ];
-                        } else {
-                          // Add new file
-                          updatedState.files = [...updatedState.files, {
-                            path: filePath,
-                            content: fileContent.trim(),
-                            type: fileType,
-                            completed: true,
-                            edited: false
-                          }];
-                        }
-                        
-                        // Only show file status if not in edit mode
-                        if (!prev.isEdit) {
-                          updatedState.status = `Completed ${filePath}`;
-                        }
-                        processedFiles.add(filePath);
-                      }
-                    }
-                    
-                    // Check for current file being generated (incomplete file at the end)
-                    const lastFileMatch = newStreamedCode.match(/<file path="([^"]+)">([^]*?)$/);
-                    if (lastFileMatch && !lastFileMatch[0].includes('</file>')) {
-                      const filePath = lastFileMatch[1];
-                      const partialContent = lastFileMatch[2];
-                      
-                      if (!processedFiles.has(filePath)) {
-                        const fileExt = filePath.split('.').pop() || '';
-                        const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
-                                        fileExt === 'css' ? 'css' :
-                                        fileExt === 'json' ? 'json' :
-                                        fileExt === 'html' ? 'html' : 'text';
-                        
-                        updatedState.currentFile = { 
-                          path: filePath, 
-                          content: partialContent, 
-                          type: fileType 
-                        };
-                        // Only show file status if not in edit mode
-                        if (!prev.isEdit) {
-                          updatedState.status = `Generating ${filePath}`;
-                        }
-                      }
-                    } else {
-                      updatedState.currentFile = undefined;
-                    }
-                    
-                    return updatedState;
-                  });
-                } else if (data.type === 'complete') {
-                  generatedCode = data.generatedCode;
-                  explanation = data.explanation;
-                  
-                  // Save the last generated code
-                  setConversationContext(prev => ({
+                } else if (data.type === 'thinking_done') {
+                  setGenerationProgress(prev => ({
                     ...prev,
-                    lastGeneratedCode: generatedCode
+                    isThinking: false,
+                    thinkingText: undefined,
+                    thinkingDuration: undefined
                   }));
+                } else if (data.type === 'content') {
+                  accumulatedCode += data.content;
+                  
+                  setGenerationProgress(prev => ({
+                    ...prev,
+                    streamedCode: accumulatedCode,
+                    status: 'Generating components...'
+                  }));
+                } else if (data.type === 'files_start') {
+                  isCollectingFiles = true;
+                  filesBuffer = '';
+                  setGenerationProgress(prev => ({
+                    ...prev,
+                    status: 'Processing files...'
+                  }));
+                } else if (data.type === 'files_content' && isCollectingFiles) {
+                  filesBuffer += data.content;
+                } else if (data.type === 'files_complete' && isCollectingFiles) {
+                  isCollectingFiles = false;
+                  try {
+                    const filesData = JSON.parse(filesBuffer);
+                    
+                    setGenerationProgress(prev => ({
+                      ...prev,
+                      files: filesData.files || [],
+                      status: 'Applying code...'
+                    }));
+                    
+                    // Apply the files
+                    const applyResponse = await fetch('/api/apply-ai-code-stream', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        filesData
+                      })
+                    });
+                    
+                    if (!applyResponse.ok) {
+                      throw new Error('Failed to apply code');
+                    }
+                    
+                    const applyResult = await applyResponse.json();
+                    
+                    if (applyResult.success) {
+                      addChatMessage(`✅ Successfully created ${filesData.files?.length || 0} files`, 'system');
+                      
+                      // Fetch updated sandbox files
+                      setTimeout(fetchSandboxFiles, 1000);
+                      
+                      setGenerationProgress(prev => ({
+                        ...prev,
+                        isGenerating: false,
+                        isStreaming: false,
+                        status: 'Complete!'
+                      }));
+                      
+                      // Clear screenshot and preparing design states to prevent them from showing on next run
+                      setUrlScreenshot(null);
+                      setIsPreparingDesign(false);
+                      setTargetUrl('');
+                      setScreenshotError(null);
+                      setLoadingStage(null);
+                      
+                      setTimeout(() => {
+                        setActiveTab('preview');
+                      }, 1000);
+                    } else {
+                      throw new Error(applyResult.error || 'Failed to apply files');
+                    }
+                  } catch (parseError: any) {
+                    console.error('Error parsing files data:', parseError);
+                    throw new Error('Failed to parse generated files');
+                  }
+                } else if (data.type === 'error') {
+                  throw new Error(data.content || 'Generation failed');
                 }
-              } catch (e) {
-                console.error('Failed to parse SSE data:', e);
+              } catch (parseError: any) {
+                if (!line.includes('data: [DONE]')) {
+                  console.error('Error parsing SSE data:', parseError, 'Line:', line);
+                }
               }
             }
           }
         }
-        
-        setGenerationProgress(prev => ({
-          ...prev,
-          isGenerating: false,
-          isStreaming: false,
-          status: 'Generation complete!'
-        }));
-        
-        if (generatedCode) {
-          addChatMessage('AI recreation generated!', 'system');
-          
-          // Add the explanation to chat if available
-          if (explanation && explanation.trim()) {
-            addChatMessage(explanation, 'ai');
-          }
-          
-          setPromptInput(generatedCode);
-          
-          // First application for cloned site should not be in edit mode
-          await applyGeneratedCode(generatedCode, false);
-          
-          addChatMessage(
-            `Successfully recreated ${url} as a modern React app${homeContextInput ? ` with your requested context: "${homeContextInput}"` : ''}! The scraped content is now in my context, so you can ask me to modify specific sections or add features based on the original site.`, 
-            'ai',
-            {
-              scrapedUrl: url,
-              scrapedContent: scrapeData,
-              generatedCode: generatedCode
-            }
-          );
-          
-          setConversationContext(prev => ({
-            ...prev,
-            generatedComponents: [],
-            appliedCode: [...prev.appliedCode, {
-              files: [],
-              timestamp: new Date()
-            }]
-          }));
-        } else {
-          throw new Error('Failed to generate recreation');
-        }
-        
-        setUrlInput('');
-        setUrlStatus([]);
-        setHomeContextInput('');
-        
-        // Clear generation progress and all screenshot/design states
-        setGenerationProgress(prev => ({
-          ...prev,
-          isGenerating: false,
-          isStreaming: false,
-          status: 'Generation complete!'
-        }));
-        
-        // Clear screenshot and preparing design states to prevent them from showing on next run
-        setUrlScreenshot(null);
-        setIsPreparingDesign(false);
-        setTargetUrl('');
-        setScreenshotError(null);
-        setLoadingStage(null); // Clear loading stage
-        
-        setTimeout(() => {
-          // Switch back to preview tab but keep files
-          setActiveTab('preview');
-        }, 1000); // Show completion briefly then switch
       } catch (error: any) {
         addChatMessage(`Failed to clone website: ${error.message}`, 'system');
         setUrlStatus([]);
         setIsPreparingDesign(false);
-        // Also clear generation progress on error
         setGenerationProgress(prev => ({
           ...prev,
           isGenerating: false,
           isStreaming: false,
           status: '',
-          // Keep files to display in sidebar
           files: prev.files
         }));
       }
@@ -3031,7 +2938,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 >
                   {appConfig.ai.availableModels.map(model => (
                     <option key={model} value={model}>
-                      {appConfig.ai.modelDisplayNames[model] || model}
+                      {(appConfig.ai.modelDisplayNames as Record<string, string>)[model] || model}
                     </option>
                   ))}
                 </select>
@@ -3068,7 +2975,7 @@ Focus on the key sections and content, making it clean and modern.`;
           >
             {appConfig.ai.availableModels.map(model => (
               <option key={model} value={model}>
-                {appConfig.ai.modelDisplayNames[model] || model}
+                {(appConfig.ai.modelDisplayNames as Record<string, string>)[model] || model}
               </option>
             ))}
           </select>
@@ -3466,10 +3373,6 @@ Focus on the key sections and content, making it clean and modern.`;
           </div>
         </div>
       </div>
-
-
-
-
     </div>
   );
 }
