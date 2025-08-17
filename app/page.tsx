@@ -996,8 +996,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         <div className="absolute inset-0 flex overflow-hidden">
           {/* File Explorer - Hide during edits */}
           {!generationProgress.isEdit && (
-            <div className="w-[250px] border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
-            <div className="p-3 bg-gray-100 text-gray-900 flex items-center justify-between">
+            <div className="w-[250px] border-r border-gray-600 bg-slate-800 flex flex-col flex-shrink-0">
+            <div className="p-3 bg-slate-700 text-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BsFolderFill className="w-4 h-4" />
                 <span className="text-sm font-medium">Explorer</span>
@@ -1430,7 +1430,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               ref={iframeRef}
               src={sandboxData.url}
               className="w-full h-full border-none"
-              title="Open Lovable Sandbox"
+              title="Terminal Jarvis Frankenstein Sandbox"
               allow="clipboard-write"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             />
@@ -1443,7 +1443,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   iframeRef.current.src = newSrc;
                 }
               }}
-              className="absolute bottom-4 right-4 bg-white/90 hover:bg-white text-gray-700 p-2 rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
+              className="absolute bottom-4 right-4 bg-slate-800/90 hover:bg-slate-700 text-gray-100 p-2 rounded-lg shadow-lg transition-all duration-200 hover:scale-105 border border-gray-600"
               title="Refresh sandbox"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2761,28 +2761,28 @@ Focus on the key sections and content, making it clean and modern.`;
   };
 
   return (
-    <div className="font-sans bg-background text-foreground h-screen flex flex-col">
+    <div className="font-sans bg-slate-900 text-gray-100 h-screen flex flex-col">
       {/* Home Screen Overlay */}
       {showHomeScreen && (
         <div className={`fixed inset-0 z-50 transition-opacity duration-500 ${homeScreenFading ? 'opacity-0' : 'opacity-100'}`}>
-          {/* Simple Sun Gradient Background */}
-          <div className="absolute inset-0 bg-white overflow-hidden">
-            {/* Main Sun - Pulsing */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-orange-400/50 via-orange-300/30 to-transparent rounded-full blur-[80px] animate-[sunPulse_4s_ease-in-out_infinite]" />
+          {/* Terminal Jarvis Dark Background with Teal Accents */}
+          <div className="absolute inset-0 bg-slate-900 overflow-hidden">
+            {/* Main Teal Glow - Pulsing */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-teal-400/30 via-teal-500/20 to-transparent rounded-full blur-[80px] animate-[sunPulse_4s_ease-in-out_infinite]" />
             
-            {/* Inner Sun Core - Brighter */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-gradient-radial from-yellow-300/40 via-orange-400/30 to-transparent rounded-full blur-[40px] animate-[sunPulse_4s_ease-in-out_infinite_0.5s]" />
+            {/* Inner Teal Core - Brighter */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-gradient-radial from-cyan-300/40 via-teal-400/30 to-transparent rounded-full blur-[40px] animate-[sunPulse_4s_ease-in-out_infinite_0.5s]" />
             
             {/* Outer Glow - Subtle */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] bg-gradient-radial from-orange-200/20 to-transparent rounded-full blur-[120px]" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] bg-gradient-radial from-teal-600/10 to-transparent rounded-full blur-[120px]" />
             
             {/* Giant Glowing Orb - Center Bottom */}
             <div className="absolute bottom-0 left-1/2 w-[800px] h-[800px] animate-[orbShrink_3s_ease-out_forwards]" style={{ transform: 'translateX(-50%) translateY(45%)' }}>
               <div className="relative w-full h-full">
-                <div className="absolute inset-0 bg-orange-600 rounded-full blur-[100px] opacity-30 animate-pulse"></div>
-                <div className="absolute inset-16 bg-orange-500 rounded-full blur-[80px] opacity-40 animate-pulse" style={{ animationDelay: '0.3s' }}></div>
-                <div className="absolute inset-32 bg-orange-400 rounded-full blur-[60px] opacity-50 animate-pulse" style={{ animationDelay: '0.6s' }}></div>
-                <div className="absolute inset-48 bg-yellow-300 rounded-full blur-[40px] opacity-60"></div>
+                <div className="absolute inset-0 bg-teal-600 rounded-full blur-[100px] opacity-20 animate-pulse"></div>
+                <div className="absolute inset-16 bg-teal-500 rounded-full blur-[80px] opacity-30 animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                <div className="absolute inset-32 bg-teal-400 rounded-full blur-[60px] opacity-35 animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                <div className="absolute inset-48 bg-cyan-300 rounded-full blur-[40px] opacity-40"></div>
               </div>
             </div>
           </div>
@@ -2797,7 +2797,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 setHomeScreenFading(false);
               }, 500);
             }}
-            className="absolute top-8 right-8 text-gray-500 hover:text-gray-700 transition-all duration-300 opacity-0 hover:opacity-100 bg-white/80 backdrop-blur-sm p-2 rounded-lg shadow-sm"
+            className="absolute top-8 right-8 text-gray-400 hover:text-white transition-all duration-300 opacity-0 hover:opacity-100 bg-slate-800/80 backdrop-blur-sm p-2 rounded-lg shadow-sm border border-gray-600"
             style={{ opacity: 0 }}
             onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}
@@ -2814,15 +2814,29 @@ Focus on the key sections and content, making it clean and modern.`;
               alt="Firecrawl"
               className="h-8 w-auto"
             />
-            <a 
-              href="https://github.com/mendableai/open-lovable" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#36322F] text-white px-3 py-2 rounded-[10px] text-sm font-medium [box-shadow:inset_0px_-2px_0px_0px_#171310,_0px_1px_6px_0px_rgba(58,_33,_8,_58%)] hover:translate-y-[1px] hover:scale-[0.98] hover:[box-shadow:inset_0px_-1px_0px_0px_#171310,_0px_1px_3px_0px_rgba(58,_33,_8,_40%)] active:translate-y-[2px] active:scale-[0.97] active:[box-shadow:inset_0px_1px_1px_0px_#171310,_0px_1px_2px_0px_rgba(58,_33,_8,_30%)] transition-all duration-200"
-            >
-              <FiGithub className="w-4 h-4" />
-              <span>Use this template</span>
-            </a>
+            <div className="flex items-center gap-3">
+              <a 
+                href="https://github.com/mendableai/open-lovable" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-slate-800/80 text-gray-300 px-3 py-2 rounded-[10px] text-sm font-medium border border-gray-600 hover:bg-slate-700/80 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                title="Original Open Lovable Implementation"
+              >
+                <FiGithub className="w-4 h-4" />
+                <span className="hidden sm:inline">Open Lovable</span>
+              </a>
+              <a 
+                href="https://github.com/BA-CalderonMorales/terminal-jarvis-frankenstein" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-teal-600 text-white px-3 py-2 rounded-[10px] text-sm font-medium [box-shadow:inset_0px_-2px_0px_0px_#0f766e,_0px_1px_6px_0px_rgba(20,_184,_166,_30%)] hover:translate-y-[1px] hover:scale-[0.98] hover:[box-shadow:inset_0px_-1px_0px_0px_#0f766e,_0px_1px_3px_0px_rgba(20,_184,_166,_20%)] active:translate-y-[2px] active:scale-[0.97] active:[box-shadow:inset_0px_1px_1px_0px_#0f766e,_0px_1px_2px_0px_rgba(20,_184,_166,_15%)] transition-all duration-200"
+                title="Terminal Jarvis Frankenstein Repository"
+              >
+                <FiGithub className="w-4 h-4" />
+                <span className="hidden sm:inline">Terminal Jarvis Frankenstein</span>
+                <span className="sm:hidden">Fork</span>
+              </a>
+            </div>
           </div>
           
           {/* Main content */}
@@ -2830,18 +2844,18 @@ Focus on the key sections and content, making it clean and modern.`;
             <div className="text-center max-w-4xl min-w-[600px] mx-auto">
               {/* Firecrawl-style Header */}
               <div className="text-center">
-                <h1 className="text-[2.5rem] lg:text-[3.8rem] text-center text-[#36322F] font-semibold tracking-tight leading-[0.9] animate-[fadeIn_0.8s_ease-out]">
-                  <span className="hidden md:inline">Open Lovable</span>
-                  <span className="md:hidden">Open Lovable</span>
+                <h1 className="text-[2.5rem] lg:text-[3.8rem] text-center text-white font-semibold tracking-tight leading-[0.9] animate-[fadeIn_0.8s_ease-out]">
+                  <span className="hidden md:inline">Terminal Jarvis Frankenstein</span>
+                  <span className="md:hidden">Terminal Jarvis Frankenstein</span>
                 </h1>
                 <motion.p 
-                  className="text-base lg:text-lg max-w-lg mx-auto mt-2.5 text-zinc-500 text-center text-balance"
+                  className="text-base lg:text-lg max-w-lg mx-auto mt-2.5 text-gray-300 text-center text-balance"
                   animate={{
                     opacity: showStyleSelector ? 0.7 : 1
                   }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
-                  Re-imagine any website, in seconds.
+                  Re-imagine any website, in seconds. <span className="text-teal-400 font-medium">(Integration with Open Lovable)</span>
                 </motion.p>
               </div>
               
@@ -2866,10 +2880,10 @@ Focus on the key sections and content, making it clean and modern.`;
                     }}
                     placeholder=" "
                     aria-placeholder="https://firecrawl.dev"
-                    className="h-[3.25rem] w-full resize-none focus-visible:outline-none focus-visible:ring-orange-500 focus-visible:ring-2 rounded-[18px] text-sm text-[#36322F] px-4 pr-12 border-[.75px] border-border bg-white"
+                    className="h-[3.25rem] w-full resize-none focus-visible:outline-none focus-visible:ring-teal-500 focus-visible:ring-2 rounded-[18px] text-sm text-white px-4 pr-12 border-[.75px] border-gray-600 bg-slate-800/80 backdrop-blur-sm"
                     style={{
-                      boxShadow: '0 0 0 1px #e3e1de66, 0 1px 2px #5f4a2e14, 0 4px 6px #5f4a2e0a, 0 40px 40px -24px #684b2514',
-                      filter: 'drop-shadow(rgba(249, 224, 184, 0.3) -0.731317px -0.731317px 35.6517px)'
+                      boxShadow: '0 0 0 1px #4b5563, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2), 0 40px 40px -24px rgba(20,184,166,0.1)',
+                      filter: 'drop-shadow(rgba(20, 184, 166, 0.2) -0.731317px -0.731317px 35.6517px)'
                     }}
                     autoFocus
                     suppressHydrationWarning
@@ -2880,14 +2894,14 @@ Focus on the key sections and content, making it clean and modern.`;
                       homeUrlInput ? 'opacity-0' : 'opacity-100'
                     }`}
                   >
-                    <span className="text-[#605A57]/50" style={{ fontFamily: 'monospace' }}>
+                    <span className="text-gray-400" style={{ fontFamily: 'monospace' }}>
                       https://firecrawl.dev
                     </span>
                   </div>
                   <button
                     type="submit"
                     disabled={!homeUrlInput.trim()}
-                    className="absolute top-1/2 transform -translate-y-1/2 right-2 flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium text-zinc-500 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="absolute top-1/2 transform -translate-y-1/2 right-2 flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium text-gray-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     title={selectedStyle ? `Clone with ${selectedStyle} Style` : 'Clone Website'}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -2903,8 +2917,8 @@ Focus on the key sections and content, making it clean and modern.`;
                       <div className={`transition-all duration-500 ease-out transform ${
                         showStyleSelector ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
                       }`}>
-                    <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-4 shadow-sm">
-                      <p className="text-sm text-gray-600 mb-3 font-medium">How do you want your site to look?</p>
+                    <div className="bg-slate-800/80 backdrop-blur-sm border border-gray-600 rounded-xl p-4 shadow-sm">
+                      <p className="text-sm text-gray-300 mb-3 font-medium">How do you want your site to look?</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {[
                           { name: 'Neobrutalist', description: 'Bold colors, thick borders' },
@@ -2947,12 +2961,12 @@ Focus on the key sections and content, making it clean and modern.`;
                             }}
                             className={`p-3 rounded-lg border transition-all ${
                               selectedStyle === style.name
-                                ? 'border-orange-400 bg-orange-50 text-gray-900 shadow-sm'
-                                : 'border-gray-200 bg-white hover:border-orange-200 hover:bg-orange-50/50 text-gray-700'
+                                ? 'border-teal-400 bg-teal-900/30 text-gray-100 shadow-sm'
+                                : 'border-gray-600 bg-slate-700/50 hover:border-teal-500 hover:bg-slate-600/50 text-gray-300'
                             }`}
                           >
                             <div className="text-sm font-medium">{style.name}</div>
-                            <div className="text-xs text-gray-500 mt-1">{style.description}</div>
+                            <div className="text-xs text-gray-400 mt-1">{style.description}</div>
                           </button>
                         ))}
                       </div>
@@ -2985,7 +2999,7 @@ Focus on the key sections and content, making it clean and modern.`;
                             }
                           }}
                           placeholder="Add more details: specific features, color preferences..."
-                          className="w-full px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition-all duration-200"
+                          className="w-full px-4 py-2 text-sm bg-slate-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 transition-all duration-200"
                           suppressHydrationWarning
                         />
                       </div>
@@ -3009,9 +3023,9 @@ Focus on the key sections and content, making it clean and modern.`;
                     }
                     router.push(`/?${params.toString()}`);
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#36322F] focus:border-transparent"
+                  className="px-3 py-1.5 text-sm bg-slate-800 text-gray-100 border border-gray-600 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   style={{
-                    boxShadow: '0 0 0 1px #e3e1de66, 0 1px 2px #5f4a2e14'
+                    boxShadow: '0 0 0 1px #4b5563, 0 1px 2px rgba(0,0,0,0.3)'
                   }}
                   suppressHydrationWarning
                 >
@@ -3049,7 +3063,7 @@ Focus on the key sections and content, making it clean and modern.`;
               }
               router.push(`/?${params.toString()}`);
             }}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#36322F] focus:border-transparent"
+            className="px-3 py-1.5 text-sm bg-slate-800 text-gray-100 border border-gray-600 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             suppressHydrationWarning
           >
             {appConfig.ai.availableModels.map(model => (

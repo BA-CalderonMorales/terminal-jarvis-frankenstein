@@ -115,27 +115,27 @@
   }
 }
 
-/* Theme configuration converted from Tailwind CSS v4 to v3 */
+/* Theme configuration converted from Tailwind CSS v4 to v3 - Terminal Jarvis Dark Theme */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 25 95% 53%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
+  --background: 203 23% 12%;  /* slate-900 */
+  --foreground: 210 20% 86%;  /* gray-100 */
+  --card: 203 23% 12%;
+  --card-foreground: 210 20% 86%;
+  --popover: 203 23% 12%;
+  --popover-foreground: 210 20% 86%;
+  --primary: 178 78% 57%;  /* teal-400 */
+  --primary-foreground: 203 23% 12%;
+  --secondary: 215 28% 17%;  /* slate-800 */
+  --secondary-foreground: 210 20% 86%;
+  --muted: 215 28% 17%;
+  --muted-foreground: 215 13% 65%;  /* gray-400 */
+  --accent: 178 78% 57%;  /* teal-400 */
+  --accent-foreground: 203 23% 12%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 25 95% 53%;
+  --destructive-foreground: 210 20% 86%;
+  --border: 215 25% 27%;  /* gray-600 */
+  --input: 215 25% 27%;
+  --ring: 178 78% 57%;  /* teal-400 */
   
   --radius: 0.5rem;
 }
@@ -203,5 +203,18 @@
   .animate-fade-in-up {
     opacity: 0;
     animation: fadeInUp 0.5s ease-out forwards;
+  }
+  
+  /* Dark theme select dropdown styling */
+  select option {
+    background-color: rgb(30 41 59); /* slate-800 */
+    color: rgb(243 244 246); /* gray-100 */
+    padding: 8px 12px;
+  }
+  
+  select option:hover,
+  select option:focus {
+    background-color: rgb(51 65 85); /* slate-700 */
+    color: white;
   }
 }

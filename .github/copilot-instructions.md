@@ -9,7 +9,10 @@
 
 ### Documentation Management
 - **DOCS DIRECTORY ONLY**: All documentation must be placed in the `docs/` directory
-- **NO ROOT DOCS**: Do not create or modify documentation files in the repository root
+- **NO ROOT DOCS**: Do not create or modify documentation files in the repository root (Exception: CHANGELOG.md)
+- **CHANGELOG ONLY**: Use CHANGELOG.md in root for version tracking - NEVER create RECENT_UPDATES.md files
+- **NO RECENT_UPDATES**: Absolutely forbidden to create docs/RECENT_UPDATES.md or any RECENT_UPDATES.md file
+- **VERSION TRACKING**: All version changes and updates must go in root CHANGELOG.md following semantic versioning
 - **NEW DOCS APPROVAL**: If creating a new `[SUBJECT].md` file in `docs/`, explicitly inform the user before creation
 - **EXISTING DOCS**: Check `docs/` directory first to see if relevant documentation already exists
 
@@ -127,7 +130,11 @@ This is a Next.js application that allows users to chat with AI to build React a
 - Tailwind CSS for styling
 
 ## Recent Changes Made
-- Resolved Tailwind CSS v4 lightningcss binary issues by downgrading to v3
+- Complete rebranding from Open Lovable to Terminal Jarvis Frankenstein (v0.0.1)
+- Implemented comprehensive dark theme with Terminal Jarvis brand colors
+- Resolved Tailwind CSS v4 lightningcss binary issues by maintaining v3
+- Fixed security vulnerabilities in PrismJS dependencies
 - Added proper environment variable configuration with `.env.local`
-- Improved error handling for missing API keys
+- Improved error handling for missing API keys and dropdown contrast issues
 - Enhanced user feedback for setup requirements
+- Established CHANGELOG.md for version tracking (NO RECENT_UPDATES.md files allowed)
