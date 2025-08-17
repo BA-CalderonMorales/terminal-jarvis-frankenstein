@@ -22,7 +22,7 @@ import {
 } from '@/lib/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import CodeApplicationProgress, { type CodeApplicationState } from '@/components/CodeApplicationProgress';
-import { normalizeUrl } from '@/lib/url-validator';
+import { normalizeUrl, quickValidateUrl, testUrlAccessibility } from '@/lib/url-validator';
 
 interface SandboxData {
   sandboxId: string;
@@ -74,6 +74,13 @@ export default function AISandboxPage() {
   const [homeScreenFading, setHomeScreenFading] = useState(false);
   const [homeUrlInput, setHomeUrlInput] = useState('');
   const [homeContextInput, setHomeContextInput] = useState('');
+  const [urlValidationState, setUrlValidationState] = useState<{
+    isValidating: boolean;
+    isValid: boolean;
+    error?: string;
+    suggestion?: string;
+  }>({ isValidating: false, isValid: false });
+  const [showContextStep, setShowContextStep] = useState(false);
   const [activeTab, setActiveTab] = useState<'generation' | 'preview'>('preview');
   const [showStyleSelector, setShowStyleSelector] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -86,6 +93,9 @@ export default function AISandboxPage() {
   const [loadingStage, setLoadingStage] = useState<'gathering' | 'planning' | 'generating' | null>(null);
   const [sandboxFiles, setSandboxFiles] = useState<Record<string, string>>({});
   const [fileStructure, setFileStructure] = useState<string>('');
+  
+  // Debounced URL validation
+  const validateUrlDebounced = useRef<NodeJS.Timeout | null>(null);
   
   const [conversationContext, setConversationContext] = useState<{
     scrapedWebsites: Array<{ url: string; content: any; timestamp: Date }>;
@@ -222,6 +232,64 @@ export default function AISandboxPage() {
       captureUrlScreenshot(screenshotUrl);
     }
   }, [showHomeScreen, homeUrlInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // URL validation with debouncing
+  const validateUrl = async (url: string) => {
+    if (!url.trim()) {
+      setUrlValidationState({ isValidating: false, isValid: false });
+      return;
+    }
+
+    // Quick format validation first
+    const quickResult = quickValidateUrl(url);
+    if (!quickResult.isValid) {
+      setUrlValidationState({ 
+        isValidating: false, 
+        isValid: false, 
+        suggestion: quickResult.suggestion 
+      });
+      return;
+    }
+
+    // Start network validation
+    setUrlValidationState({ isValidating: true, isValid: false });
+    
+    try {
+      const result = await testUrlAccessibility(url);
+      setUrlValidationState({
+        isValidating: false,
+        isValid: result.isValid,
+        error: result.error
+      });
+    } catch (error) {
+      setUrlValidationState({
+        isValidating: false,
+        isValid: false,
+        error: 'Failed to validate URL. Please check your connection.'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (validateUrlDebounced.current) {
+      clearTimeout(validateUrlDebounced.current);
+    }
+
+    if (homeUrlInput.trim()) {
+      validateUrlDebounced.current = setTimeout(() => {
+        validateUrl(homeUrlInput);
+      }, 800); // 800ms debounce
+    } else {
+      setUrlValidationState({ isValidating: false, isValid: false });
+      setShowContextStep(false);
+    }
+
+    return () => {
+      if (validateUrlDebounced.current) {
+        clearTimeout(validateUrlDebounced.current);
+      }
+    };
+  }, [homeUrlInput]);
 
 
   useEffect(() => {
@@ -2379,34 +2447,49 @@ Focus on the key sections and content, making it clean and modern while preservi
 
   const handleHomeScreenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!homeUrlInput.trim()) return;
     
-    // Validate URL format only (no network requests)
-    const normalizedUrl = normalizeUrl(homeUrlInput.trim());
-    
-    // Basic format validation
-    try {
-      new URL(normalizedUrl);
-    } catch {
-      setChatMessages([{
-        content: '❌ Please enter a valid website URL to clone (e.g., firecrawl.dev, stripe.com, or github.com). \n\nTerminal Jarvis Frankenstein creates React apps by analyzing existing websites, so we need a real URL to get started!',
-        type: 'error',
-        timestamp: new Date()
-      }]);
+    // If URL is not validated yet, show error
+    if (!urlValidationState.isValid) {
+      if (urlValidationState.error) {
+        setChatMessages([{
+          content: `❌ ${urlValidationState.error}`,
+          type: 'error',
+          timestamp: new Date()
+        }]);
+      } else if (urlValidationState.suggestion) {
+        setChatMessages([{
+          content: `💡 ${urlValidationState.suggestion}`,
+          type: 'error',
+          timestamp: new Date()
+        }]);
+      } else {
+        setChatMessages([{
+          content: '❌ Please enter a valid website URL to clone (e.g., firecrawl.dev, stripe.com, or github.com).',
+          type: 'error',
+          timestamp: new Date()
+        }]);
+      }
       return;
     }
-    
-    // Use the normalized URL directly without network validation
-    const finalUrl = normalizedUrl;
+
+    // If context step is not shown yet, show it instead of proceeding
+    if (!showContextStep) {
+      setShowContextStep(true);
+      return;
+    }
+
+    // Proceed with validated URL and context
+    const normalizedUrl = normalizeUrl(homeUrlInput.trim());
+    const cleanUrl = normalizedUrl.replace(/^https?:\/\//i, '');
     
     setChatMessages([{
-      content: `✅ Starting to clone ${finalUrl.replace(/^https?:\/\//i, '')}...`,
+      content: `✅ Starting to clone ${cleanUrl}${homeContextInput ? ` with context: "${homeContextInput}"` : ''}...`,
       type: 'system',
       timestamp: new Date()
     }]);
     
     // Continue with the original flow using validated URL
-    continueWithValidatedUrl(finalUrl);
+    continueWithValidatedUrl(normalizedUrl);
   };
 
   const continueWithValidatedUrl = (finalUrl: string) => {
@@ -2415,7 +2498,8 @@ Focus on the key sections and content, making it clean and modern while preservi
     // Clear messages and immediately show the cloning message
     setChatMessages([]);
     const cleanUrl = finalUrl.replace(/^https?:\/\//i, '');
-    addChatMessage(`Starting to clone ${cleanUrl}...`, 'system');
+    const contextMessage = homeContextInput ? ` with modifications: "${homeContextInput}"` : '';
+    addChatMessage(`Starting to clone ${cleanUrl}${contextMessage}...`, 'system');
     
     // Start creating sandbox and capturing screenshot immediately in parallel
     const sandboxPromise = !sandboxData ? createSandbox(true) : Promise.resolve();
@@ -2775,21 +2859,54 @@ Focus on the key sections and content, making it clean and modern.`;
                       const value = e.target.value;
                       setHomeUrlInput(value);
                       
-                      // Check if it's a valid domain
-                      const domainRegex = /^(https?:\/\/)?(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})(\/?.*)?$/;
-                      if (domainRegex.test(value) && value.length > 5) {
-                        // Small delay to make the animation feel smoother
+                      // Reset context step when URL changes
+                      if (showContextStep) {
+                        setShowContextStep(false);
+                      }
+                      
+                      // Update style selector based on quick validation
+                      const quickResult = quickValidateUrl(value);
+                      if (quickResult.isValid && value.length > 5) {
                         setTimeout(() => setShowStyleSelector(true), 100);
                       } else {
                         setShowStyleSelector(false);
                         setSelectedStyle(null);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        // Only allow form submission if URL is valid or context step is shown
+                        if (!urlValidationState.isValid && !showContextStep) {
+                          e.preventDefault();
+                          
+                          // Show validation message
+                          if (urlValidationState.suggestion || urlValidationState.error) {
+                            // Error is already displayed, just prevent submission
+                            return;
+                          } else if (homeUrlInput.trim()) {
+                            // Trigger validation immediately if user has input
+                            validateUrl(homeUrlInput);
+                          }
+                        }
+                      }
+                    }}
                     placeholder=" "
                     aria-placeholder="https://firecrawl.dev"
-                    className="h-[3.25rem] w-full resize-none focus-visible:outline-none focus-visible:ring-teal-500 focus-visible:ring-2 rounded-[18px] text-sm text-white px-4 pr-12 border-[.75px] border-gray-600 bg-slate-800/80 backdrop-blur-sm"
+                    className={`h-[3.25rem] w-full resize-none focus-visible:outline-none focus-visible:ring-2 rounded-[18px] text-sm text-white px-4 pr-12 border-[.75px] backdrop-blur-sm transition-all duration-200 ${
+                      homeUrlInput ? (
+                        urlValidationState.isValidating ? 'border-yellow-500 focus-visible:ring-yellow-500 bg-slate-800/80' :
+                        urlValidationState.isValid ? 'border-green-500 focus-visible:ring-green-500 bg-slate-800/80' :
+                        urlValidationState.error || urlValidationState.suggestion ? 'border-red-500 focus-visible:ring-red-500 bg-red-900/20' :
+                        'border-gray-600 focus-visible:ring-teal-500 bg-slate-800/80'
+                      ) : 'border-gray-600 focus-visible:ring-teal-500 bg-slate-800/80'
+                    }`}
                     style={{
-                      boxShadow: '0 0 0 1px #4b5563, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2), 0 40px 40px -24px rgba(20,184,166,0.1)',
+                      boxShadow: homeUrlInput ? (
+                        urlValidationState.isValidating ? '0 0 0 1px #eab308, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2)' :
+                        urlValidationState.isValid ? '0 0 0 1px #22c55e, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2)' :
+                        urlValidationState.error || urlValidationState.suggestion ? '0 0 0 1px #ef4444, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2)' :
+                        '0 0 0 1px #4b5563, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2), 0 40px 40px -24px rgba(20,184,166,0.1)'
+                      ) : '0 0 0 1px #4b5563, 0 1px 2px rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.2), 0 40px 40px -24px rgba(20,184,166,0.1)',
                       filter: 'drop-shadow(rgba(20, 184, 166, 0.2) -0.731317px -0.731317px 35.6517px)'
                     }}
                     autoFocus
@@ -2805,65 +2922,119 @@ Focus on the key sections and content, making it clean and modern.`;
                       https://firecrawl.dev
                     </span>
                   </div>
+                  
+                  {/* Validation status indicator */}
+                  <div className="absolute top-1/2 transform -translate-y-1/2 right-14 flex items-center">
+                    {homeUrlInput && (
+                      urlValidationState.isValidating ? (
+                        <div className="animate-spin w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+                      ) : urlValidationState.isValid ? (
+                        <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (urlValidationState.error || urlValidationState.suggestion) ? (
+                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      ) : null
+                    )}
+                  </div>
+                  
                   <button
                     type="submit"
-                    disabled={!homeUrlInput.trim()}
-                    className="absolute top-1/2 transform -translate-y-1/2 right-2 flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium text-gray-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title={selectedStyle ? `Clone with ${selectedStyle} Style` : 'Clone Website'}
+                    disabled={!urlValidationState.isValid && !showContextStep}
+                    className={`absolute top-1/2 transform -translate-y-1/2 right-2 flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                      showContextStep ? 'text-green-400 hover:text-green-300' : 'text-gray-400 hover:text-white'
+                    }`}
+                    title={showContextStep ? 'Start Cloning' : selectedStyle ? `Clone with ${selectedStyle} Style` : 'Next: Add Context'}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <polyline points="9 10 4 15 9 20"></polyline>
-                      <path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
-                    </svg>
+                    {showContextStep ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                        <polyline points="9 10 4 15 9 20"></polyline>
+                        <path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
+                      </svg>
+                    )}
                   </button>
                 </div>
+                
+                {/* URL Validation feedback */}
+                {homeUrlInput && !urlValidationState.isValid && (urlValidationState.error || urlValidationState.suggestion) && (
+                  <div className="mt-2 text-sm text-red-400 text-center">
+                    💡 {urlValidationState.error || urlValidationState.suggestion}
+                  </div>
+                )}
+                
+                {/* URL validation success and accessibility info */}
+                {urlValidationState.isValid && !showContextStep && (
+                  <div className="mt-2 text-sm text-green-400 text-center">
+                    ✅ Website accessible! Click the arrow to add context or modifications.
+                  </div>
+                )}
+                
+                {/* Context Step */}
+                {showContextStep && urlValidationState.isValid && (
+                  <div className="mt-4 overflow-hidden">
+                    <div className="bg-slate-800/80 backdrop-blur-sm border border-gray-600 rounded-xl p-4 shadow-sm">
+                      <p className="text-sm text-gray-300 mb-3 font-medium">What changes would you like to make to this website?</p>
+                      <textarea
+                        value={homeContextInput}
+                        onChange={(e) => setHomeContextInput(e.target.value)}
+                        placeholder="e.g., Make it more modern, change colors to blue and white, add a contact form, simplify the layout..."
+                        className="w-full h-20 resize-none bg-slate-700/50 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        autoFocus
+                      />
+                      <div className="flex items-center justify-between mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowContextStep(false)}
+                          className="text-sm text-gray-400 hover:text-white transition-colors"
+                        >
+                          ← Back to URL
+                        </button>
+                        <button
+                          type="submit"
+                          className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
+                        >
+                          Start Cloning ⚡
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                   
-                  {/* Style Selector - Slides out when valid domain is entered */}
-                  {showStyleSelector && (
+                  {/* Style Selector - Only show when URL is valid but context step not shown */}
+                  {showStyleSelector && urlValidationState.isValid && !showContextStep && (
                     <div className="overflow-hidden mt-4">
                       <div className={`transition-all duration-500 ease-out transform ${
                         showStyleSelector ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
                       }`}>
                     <div className="bg-slate-800/80 backdrop-blur-sm border border-gray-600 rounded-xl p-4 shadow-sm">
-                      <p className="text-sm text-gray-300 mb-3 font-medium">How do you want your site to look?</p>
+                      <p className="text-sm text-gray-300 mb-3 font-medium">Choose a style theme (optional):</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {[
-                          { name: 'Neobrutalist', description: 'Bold colors, thick borders' },
+                          { name: 'Modern', description: 'Clean and contemporary' },
+                          { name: 'Dark Mode', description: 'Dark theme aesthetic' },
+                          { name: 'Minimalist', description: 'Simple and clean' },
                           { name: 'Glassmorphism', description: 'Frosted glass effects' },
-                          { name: 'Minimalist', description: 'Clean and simple' },
-                          { name: 'Dark Mode', description: 'Dark theme' },
+                          { name: 'Neobrutalist', description: 'Bold colors, thick borders' },
                           { name: 'Gradient', description: 'Colorful gradients' },
                           { name: 'Retro', description: '80s/90s aesthetic' },
-                          { name: 'Modern', description: 'Contemporary design' },
                           { name: 'Monochrome', description: 'Black and white' }
                         ].map((style) => (
                           <button
                             key={style.name}
                             type="button"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                // Submit the form
-                                const form = e.currentTarget.closest('form');
-                                if (form) {
-                                  form.requestSubmit();
-                                }
-                              }
-                            }}
                             onClick={() => {
                               if (selectedStyle === style.name) {
-                                // Deselect if clicking the same style
                                 setSelectedStyle(null);
-                                // Keep only additional context, remove the style theme part
-                                const currentAdditional = homeContextInput.replace(/^[^,]+theme\s*,?\s*/, '').trim();
-                                setHomeContextInput(currentAdditional);
+                                setHomeContextInput('');
                               } else {
-                                // Select new style
                                 setSelectedStyle(style.name);
-                                // Extract any additional context (everything after the style theme)
-                                const currentAdditional = homeContextInput.replace(/^[^,]+theme\s*,?\s*/, '').trim();
-                                setHomeContextInput(style.name.toLowerCase() + ' theme' + (currentAdditional ? ', ' + currentAdditional : ''));
+                                setHomeContextInput(`${style.name.toLowerCase()} theme`);
                               }
                             }}
                             className={`p-3 rounded-lg border transition-all ${
@@ -2876,39 +3047,6 @@ Focus on the key sections and content, making it clean and modern.`;
                             <div className="text-xs text-gray-400 mt-1">{style.description}</div>
                           </button>
                         ))}
-                      </div>
-                      
-                      {/* Additional context input - part of the style selector */}
-                      <div className="mt-4 mb-2">
-                        <input
-                          type="text"
-                          value={(() => {
-                            if (!selectedStyle) return homeContextInput;
-                            // Extract additional context by removing the style theme part
-                            const additional = homeContextInput.replace(new RegExp('^' + selectedStyle.toLowerCase() + ' theme\\s*,?\\s*', 'i'), '');
-                            return additional;
-                          })()}
-                          onChange={(e) => {
-                            const additionalContext = e.target.value;
-                            if (selectedStyle) {
-                              setHomeContextInput(selectedStyle.toLowerCase() + ' theme' + (additionalContext.trim() ? ', ' + additionalContext : ''));
-                            } else {
-                              setHomeContextInput(additionalContext);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              const form = e.currentTarget.closest('form');
-                              if (form) {
-                                form.requestSubmit();
-                              }
-                            }
-                          }}
-                          placeholder="Add more details: specific features, color preferences..."
-                          className="w-full px-4 py-2 text-sm bg-slate-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 transition-all duration-200"
-                          suppressHydrationWarning
-                        />
                       </div>
                     </div>
                       </div>

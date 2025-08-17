@@ -42,86 +42,38 @@ export function normalizeUrl(input: string): string {
 
 /**
  * Test if a URL is actually accessible by making a lightweight request
+ * This function now calls the backend API to avoid CORS issues
  */
 export async function testUrlAccessibility(url: string): Promise<UrlValidationResult> {
   try {
-    const normalizedUrl = normalizeUrl(url);
+    const response = await fetch('/api/validate-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ url })
+    });
+
+    const data = await response.json();
     
-    // First check if it's a valid format
-    if (!isValidUrlFormat(normalizedUrl)) {
+    if (response.ok && data.isValid) {
+      return {
+        isValid: true,
+        finalUrl: data.finalUrl,
+        statusCode: data.statusCode
+      };
+    } else {
       return {
         isValid: false,
-        error: 'Invalid URL format. Please provide a valid website URL (e.g., firecrawl.dev, stripe.com, github.com)'
+        error: data.error || 'Failed to validate URL'
       };
     }
-
-    // Test both HTTPS and HTTP if HTTPS fails
-    const urlsToTest = [normalizedUrl];
-    
-    // If the normalized URL is HTTPS, also try HTTP as fallback
-    if (normalizedUrl.startsWith('https://')) {
-      const httpUrl = normalizedUrl.replace('https://', 'http://');
-      urlsToTest.push(httpUrl);
-    }
-
-    let lastError = '';
-    
-    for (const testUrl of urlsToTest) {
-      try {
-        // Use a lightweight HEAD request first, then fallback to GET
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-        
-        let response;
-        try {
-          // Try HEAD request first (faster)
-          response = await fetch(testUrl, {
-            method: 'HEAD',
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Terminal-Jarvis-Frankenstein/1.0 (Website-Cloning-Tool)'
-            }
-          });
-        } catch (headError) {
-          // If HEAD fails, try GET request
-          response = await fetch(testUrl, {
-            method: 'GET',
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Terminal-Jarvis-Frankenstein/1.0 (Website-Cloning-Tool)'
-            }
-          });
-        }
-        
-        clearTimeout(timeoutId);
-        
-        // Consider 2xx, 3xx, and even some 4xx as "accessible" 
-        // (site exists but might have restrictions)
-        if (response.status < 500) {
-          return {
-            isValid: true,
-            finalUrl: testUrl,
-            statusCode: response.status
-          };
-        }
-        
-        lastError = `Server error (${response.status})`;
-        
-      } catch (fetchError: any) {
-        lastError = fetchError.name === 'AbortError' ? 'Request timeout' : 'Connection failed';
-        continue; // Try next URL variant
-      }
-    }
-    
-    return {
-      isValid: false,
-      error: `Unable to reach website: ${lastError}. Please check the URL and try again.`
-    };
     
   } catch (error: any) {
+    console.error('[testUrlAccessibility] Network error:', error);
     return {
       isValid: false,
-      error: 'Failed to validate URL. Please check your internet connection and try again.'
+      error: 'Network error while validating URL. Please check your connection.'
     };
   }
 }
