@@ -151,17 +151,33 @@ export async function POST(request: NextRequest) {
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
     let writerClosed = false;
+    let requestAborted = false;
+    
+    // Monitor for request abortion
+    if (request.signal) {
+      request.signal.addEventListener('abort', () => {
+        console.log('[generate-ai-code-stream] Request aborted by client');
+        requestAborted = true;
+        closeStream();
+      });
+    }
     
     // Function to send progress updates
     const sendProgress = async (data: any) => {
-      if (writerClosed) {
+      // Check if the request was aborted or connection closed
+      if (requestAborted || writerClosed) {
+        console.log('[generate-ai-code-stream] Request aborted, skipping:', data.type);
         return;
       }
+      
       try {
         const message = `data: ${JSON.stringify(data)}\n\n`;
+        console.log('[generate-ai-code-stream] Sending:', data.type, 'Length:', message.length);
         await writer.write(encoder.encode(message));
       } catch (error) {
+        console.error('[generate-ai-code-stream] Write error:', error);
         writerClosed = true;
+        requestAborted = true;
       }
     };
     
@@ -171,9 +187,12 @@ export async function POST(request: NextRequest) {
         return;
       }
       try {
+        console.log('[generate-ai-code-stream] Closing stream...');
         await writer.close();
         writerClosed = true;
+        console.log('[generate-ai-code-stream] Stream closed successfully');
       } catch (error) {
+        console.error('[generate-ai-code-stream] Error closing stream:', error);
         writerClosed = true;
       }
     };
@@ -200,7 +219,7 @@ export async function POST(request: NextRequest) {
           if (manifest) {
             await sendProgress({ type: 'status', message: '🔍 Creating search plan...' });
             
-            const fileContents = global.sandboxState.fileCache.files;
+            const fileContents = global.sandboxState?.fileCache?.files || {};
             console.log('[generate-ai-code-stream] Files available for search:', Object.keys(fileContents).length);
             
             // STEP 1: Get search plan from AI
@@ -361,7 +380,7 @@ User request: "${prompt}"`;
                         
                         // For now, fall back to keyword search since we don't have file contents for search execution
                         // This path happens when no manifest was initially available
-                        let targetFiles = [];
+                        let targetFiles: string[] = [];
                         if (!searchPlan || searchPlan.searchTerms.length === 0) {
                           console.warn('[generate-ai-code-stream] No target files after fetch, searching for relevant files');
                           
@@ -985,13 +1004,15 @@ CRITICAL: When files are provided in the context:
                   // Store files in cache
                   for (const [path, content] of Object.entries(filesData.files)) {
                     const normalizedPath = path.replace('/home/user/app/', '');
-                    global.sandboxState.fileCache.files[normalizedPath] = {
-                      content: content as string,
-                      lastModified: Date.now()
-                    };
+                    if (global.sandboxState.fileCache) {
+                      global.sandboxState.fileCache.files[normalizedPath] = {
+                        content: content as string,
+                        lastModified: Date.now()
+                      };
+                    }
                   }
                   
-                  if (filesData.manifest) {
+                  if (filesData.manifest && global.sandboxState.fileCache) {
                     global.sandboxState.fileCache.manifest = filesData.manifest;
                     
                     // Now try to analyze edit intent with the fetched manifest
@@ -1023,7 +1044,7 @@ CRITICAL: When files are provided in the context:
                   }
                   
                   // Update variables
-                  backendFiles = global.sandboxState.fileCache.files;
+                  backendFiles = global.sandboxState.fileCache?.files || {};
                   hasBackendFiles = Object.keys(backendFiles).length > 0;
                   console.log('[generate-ai-code-stream] Updated backend cache with fetched files');
                 }
@@ -1253,7 +1274,7 @@ If you're running out of space, generate FEWER files but make them COMPLETE.
 It's better to have 3 complete files than 10 incomplete files.`
             }
           ],
-          maxTokens: 8192, // Reduce to ensure completion
+          maxTokens: isEdit ? 8192 : 32768, // Much higher limit for initial generation, lower for edits
           stopSequences: [] // Don't stop early
           // Note: Neither Groq nor Anthropic models support tool/function calling in this context
           // We use XML tags for package detection instead
@@ -1288,8 +1309,24 @@ It's better to have 3 complete files than 10 incomplete files.`
         let tagBuffer = '';
         
         // Stream the response and parse for packages in real-time
+        let totalChunks = 0;
+        let totalLength = 0;
+        
         for await (const textPart of result.textStream) {
+          // Check if the request was aborted
+          if (requestAborted) {
+            console.log('[generate-ai-code-stream] Request aborted during streaming, stopping...');
+            break;
+          }
+          
           const text = textPart || '';
+          totalChunks++;
+          totalLength += text.length;
+          
+          if (totalChunks % 100 === 0) {
+            console.log(`[generate-ai-code-stream] Chunk ${totalChunks}, Total length: ${totalLength}`);
+          }
+          
           generatedCode += text;
           currentFile += text;
           
@@ -1392,7 +1429,9 @@ It's better to have 3 complete files than 10 incomplete files.`
           }
         }
         
-        console.log('\n\n[generate-ai-code-stream] Streaming complete.');
+        console.log(`\n[generate-ai-code-stream] Streaming complete. Total chunks: ${totalChunks}, Total length: ${totalLength}`);
+        console.log(`[generate-ai-code-stream] Final generatedCode length: ${generatedCode.length}`);
+        console.log(`[generate-ai-code-stream] Last 200 chars: ${generatedCode.slice(-200)}`);
         
         // Send completion signal
         await sendProgress({ type: 'complete' });
@@ -1619,30 +1658,58 @@ Provide the complete file content without any truncation. Include all necessary 
                 // Make a focused API call to complete this specific file
                 // Create a new client for the completion based on the provider
                 let completionClient;
+                let actualCompletionModel;
+                
                 if (model.includes('gpt') || model.includes('openai')) {
                   completionClient = openai;
-                } else if (model.includes('claude')) {
+                  actualCompletionModel = model === 'openai/gpt-5' ? 'gpt-5' : model.replace('openai/', '');
+                } else if (model.includes('claude') || model.includes('anthropic')) {
                   completionClient = anthropic;
+                  actualCompletionModel = model.replace('anthropic/', '');
+                } else if (model.includes('google')) {
+                  completionClient = googleGenerativeAI;
+                  actualCompletionModel = model.replace('google/', '');
                 } else {
                   completionClient = groq;
+                  actualCompletionModel = model;
                 }
                 
-                const completionResult = await streamText({
-                  model: completionClient(modelMapping[model] || model),
+                const isGPT5 = model === 'openai/gpt-5';
+                
+                const completionOptions: any = {
+                  model: completionClient(actualCompletionModel),
                   messages: [
                     { 
                       role: 'system', 
                       content: 'You are completing a truncated file. Provide the complete, working file content.'
                     },
                     { role: 'user', content: completionPrompt }
-                  ],
-                  temperature: isGPT5 ? undefined : appConfig.ai.defaultTemperature,
-                  maxTokens: appConfig.ai.truncationRecoveryMaxTokens
-                });
+                  ]
+                };
+                
+                // Add temperature for non-reasoning models
+                if (!isGPT5) {
+                  completionOptions.temperature = appConfig.ai.defaultTemperature;
+                }
+                
+                // Add max tokens based on provider
+                if (model.includes('anthropic') || model.includes('claude')) {
+                  completionOptions.maxTokens = appConfig.ai.truncationRecoveryMaxTokens;
+                } else if (model.includes('google')) {
+                  // Google models use maxOutputTokens
+                  completionOptions.maxOutputTokens = appConfig.ai.truncationRecoveryMaxTokens;
+                }
+                
+                const completionResult = await streamText(completionOptions);
                 
                 // Get the full text from the stream
                 let completedContent = '';
                 for await (const chunk of completionResult.textStream) {
+                  // Check if request was aborted
+                  if (requestAborted) {
+                    console.log('[generate-ai-code-stream] Request aborted during completion, stopping...');
+                    break;
+                  }
                   completedContent += chunk;
                 }
                 
@@ -1698,6 +1765,26 @@ Provide the complete file content without any truncation. Include all necessary 
           warnings: truncationWarnings.length > 0 ? truncationWarnings : undefined
         });
         
+        console.log('[generate-ai-code-stream] Complete event sent successfully');
+        
+        // Send final termination signal for SSE
+        console.log('[generate-ai-code-stream] Sending termination signals...');
+        
+        if (!requestAborted && !writerClosed) {
+          try {
+            await sendProgress({ type: 'done' });
+            // Give client time to process the done signal
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Send the standard SSE termination
+            await writer.write(encoder.encode('data: [DONE]\n\n'));
+            console.log('[generate-ai-code-stream] [DONE] signal sent');
+          } catch (error) {
+            console.warn('[generate-ai-code-stream] Failed to send termination signal:', error);
+            writerClosed = true;
+          }
+        }
+        
         // Track edit in conversation history
         if (isEdit && editContext && global.conversationState) {
           const editRecord: ConversationEdit = {
@@ -1751,6 +1838,11 @@ Provide the complete file content without any truncation. Include all necessary 
           });
         }
       } finally {
+        console.log('[generate-ai-code-stream] Entering finally block...');
+        
+        // Small delay to ensure all data is flushed before closing
+        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('[generate-ai-code-stream] About to close stream...');
         await closeStream();
       }
     })();
@@ -1760,7 +1852,6 @@ Provide the complete file content without any truncation. Include all necessary 
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Connection': 'keep-alive',
         'X-Accel-Buffering': 'no', // Disable nginx buffering
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST',

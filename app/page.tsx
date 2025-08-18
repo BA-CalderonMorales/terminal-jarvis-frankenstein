@@ -2630,8 +2630,40 @@ Focus on the key sections and content, making it clean and modern.`;
         let isCollectingFiles = false;
         let filesBuffer = '';
         
+        // Set up a completion timeout as a failsafe
+        const completionTimeout = setTimeout(() => {
+          console.log('Stream timeout reached, forcing completion...');
+          
+          // Get the current state
+          const currentState = generationProgress;
+          if (currentState.files.length > 0 && currentState.isStreaming) {
+            // Force completion
+            setGenerationProgress(prev => ({
+              ...prev,
+              isGenerating: false,
+              isStreaming: false,
+              status: 'Complete! (Timeout handled)'
+            }));
+            
+            addChatMessage('✅ Code generation completed (timeout handled gracefully)', 'system');
+            
+            setTimeout(() => {
+              setActiveTab('preview');
+            }, 1000);
+          }
+        }, 65000); // 65 seconds - slightly longer than the typical completion time
+        
         while (true) {
-          const { done, value } = await reader.read();
+          let result;
+          try {
+            result = await reader.read();
+          } catch (readError: any) {
+            console.log('Reader error (likely connection closed):', readError.message);
+            // Connection was closed, but we might have received data already
+            break;
+          }
+          
+          const { done, value } = result;
           if (done) break;
           
           const chunk = decoder.decode(value);
@@ -2642,99 +2674,148 @@ Focus on the key sections and content, making it clean and modern.`;
               try {
                 const data = JSON.parse(line.slice(6));
                 
-                if (data.type === 'thinking') {
+                if (data.type === 'status') {
                   setGenerationProgress(prev => ({
                     ...prev,
-                    isThinking: true,
-                    thinkingText: data.content,
-                    thinkingDuration: data.duration
+                    status: data.message || 'Processing...'
                   }));
-                } else if (data.type === 'thinking_done') {
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    isThinking: false,
-                    thinkingText: undefined,
-                    thinkingDuration: undefined
-                  }));
-                } else if (data.type === 'content') {
-                  accumulatedCode += data.content;
+                } else if (data.type === 'conversation') {
+                  // Filter out any XML tags and file content that slipped through
+                  if (!data.text.includes('<file') && !data.text.includes('import React') && 
+                      !data.text.includes('export default') && !data.text.includes('className=') &&
+                      data.text.trim().length > 0) {
+                    addChatMessage(data.text.trim(), 'ai');
+                  }
+                } else if (data.type === 'stream' && data.raw) {
+                  // Accumulate all streamed content as code
+                  accumulatedCode += data.text;
                   
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    streamedCode: accumulatedCode,
-                    status: 'Generating components...'
-                  }));
-                } else if (data.type === 'files_start') {
-                  isCollectingFiles = true;
-                  filesBuffer = '';
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    status: 'Processing files...'
-                  }));
-                } else if (data.type === 'files_content' && isCollectingFiles) {
-                  filesBuffer += data.content;
-                } else if (data.type === 'files_complete' && isCollectingFiles) {
-                  isCollectingFiles = false;
-                  try {
-                    const filesData = JSON.parse(filesBuffer);
+                  setGenerationProgress(prev => {
+                    const newStreamedCode = prev.streamedCode + data.text;
+                    
+                    const updatedState = { 
+                      ...prev, 
+                      streamedCode: newStreamedCode,
+                      isStreaming: true,
+                      status: 'Generating code...'
+                    };
+                    
+                    // Process complete files from the accumulated stream
+                    const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
+                    let match;
+                    const processedFiles = new Set(prev.files.map(f => f.path));
+                    
+                    while ((match = fileRegex.exec(newStreamedCode)) !== null) {
+                      const filePath = match[1];
+                      const fileContent = match[2];
+                      
+                      // Only add if we haven't processed this file yet
+                      if (!processedFiles.has(filePath)) {
+                        const fileExt = filePath.split('.').pop() || '';
+                        const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
+                                        fileExt === 'css' ? 'css' :
+                                        fileExt === 'json' ? 'json' :
+                                        fileExt === 'html' ? 'html' : 'text';
+                        
+                        // Check if file already exists
+                        const existingFileIndex = updatedState.files.findIndex(f => f.path === filePath);
+                        
+                        if (existingFileIndex >= 0) {
+                          // Update existing file and mark as edited
+                          updatedState.files = [
+                            ...updatedState.files.slice(0, existingFileIndex),
+                            {
+                              ...updatedState.files[existingFileIndex],
+                              content: fileContent.trim(),
+                              type: fileType,
+                              completed: true,
+                              edited: true
+                            },
+                            ...updatedState.files.slice(existingFileIndex + 1)
+                          ];
+                        } else {
+                          // Add new file
+                          updatedState.files = [...updatedState.files, {
+                            path: filePath,
+                            content: fileContent.trim(),
+                            type: fileType,
+                            completed: true,
+                            edited: false
+                          }];
+                        }
+                        
+                        updatedState.status = `Completed ${filePath}`;
+                        processedFiles.add(filePath);
+                      }
+                    }
+                    
+                    // Check for current file being generated (incomplete file at the end)
+                    const lastFileMatch = newStreamedCode.match(/<file path="([^"]+)">([^]*?)$/);
+                    if (lastFileMatch && !lastFileMatch[0].includes('</file>')) {
+                      const filePath = lastFileMatch[1];
+                      const partialContent = lastFileMatch[2];
+                      
+                      if (!processedFiles.has(filePath)) {
+                        const fileExt = filePath.split('.').pop() || '';
+                        const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
+                                        fileExt === 'css' ? 'css' :
+                                        fileExt === 'json' ? 'json' :
+                                        fileExt === 'html' ? 'html' : 'text';
+                        
+                        updatedState.currentFile = { 
+                          path: filePath, 
+                          content: partialContent, 
+                          type: fileType 
+                        };
+                        updatedState.status = `Generating ${filePath}`;
+                      }
+                    } else {
+                      updatedState.currentFile = undefined;
+                    }
+                    
+                    return updatedState;
+                  });
+                } else if (data.type === 'complete') {
+                  console.log('Stream completed successfully');
+                  
+                  // Get the final generated code
+                  const finalCode = data.generatedCode || accumulatedCode;
+                  
+                  if (finalCode || generationProgress.files.length > 0) {
+                    // Apply the generated code if we have it, or use the accumulated files
+                    const isEdit = conversationContext.appliedCode.length > 0;
+                    
+                    if (finalCode) {
+                      await applyGeneratedCode(finalCode, isEdit);
+                    } else {
+                      // If no final code, assume files were already processed from the stream
+                      console.log('No final code provided, files should already be applied from stream');
+                    }
                     
                     setGenerationProgress(prev => ({
                       ...prev,
-                      files: filesData.files || [],
-                      status: 'Applying code...'
+                      isGenerating: false,
+                      isStreaming: false,
+                      status: 'Complete!'
                     }));
                     
-                    // Apply the files
-                    const applyResponse = await fetch('/api/apply-ai-code-stream', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        filesData
-                      })
-                    });
+                    // Clear screenshot and preparing design states
+                    setUrlScreenshot(null);
+                    setIsPreparingDesign(false);
+                    setTargetUrl('');
+                    setScreenshotError(null);
+                    setLoadingStage(null);
                     
-                    if (!applyResponse.ok) {
-                      throw new Error('Failed to apply code');
-                    }
-                    
-                    const applyResult = await applyResponse.json();
-                    
-                    if (applyResult.success) {
-                      addChatMessage(`✅ Successfully created ${filesData.files?.length || 0} files`, 'system');
-                      
-                      // Fetch updated sandbox files
-                      setTimeout(fetchSandboxFiles, 1000);
-                      
-                      setGenerationProgress(prev => ({
-                        ...prev,
-                        isGenerating: false,
-                        isStreaming: false,
-                        status: 'Complete!'
-                      }));
-                      
-                      // Clear screenshot and preparing design states to prevent them from showing on next run
-                      setUrlScreenshot(null);
-                      setIsPreparingDesign(false);
-                      setTargetUrl('');
-                      setScreenshotError(null);
-                      setLoadingStage(null);
-                      
-                      setTimeout(() => {
-                        setActiveTab('preview');
-                      }, 1000);
-                    } else {
-                      throw new Error(applyResult.error || 'Failed to apply files');
-                    }
-                  } catch (parseError: any) {
-                    console.error('Error parsing files data:', parseError);
-                    throw new Error('Failed to parse generated files');
+                    setTimeout(() => {
+                      setActiveTab('preview');
+                    }, 1000);
                   }
-                } else if (data.type === 'error') {
-                  throw new Error(data.content || 'Generation failed');
-                } else if (data.type === 'complete') {
-                  // Stream completed successfully - break out of loop
-                  console.log('Stream completed successfully');
                   break;
+                } else if (data.type === 'done') {
+                  console.log('Stream termination signal received');
+                  break;
+                } else if (data.type === 'error') {
+                  throw new Error(data.error || 'Generation failed');
                 }
               } catch (parseError: any) {
                 if (!line.includes('data: [DONE]')) {
@@ -2744,7 +2825,77 @@ Focus on the key sections and content, making it clean and modern.`;
             }
           }
         }
+        
+        // Fallback completion handling if stream ended without explicit complete event
+        const currentProgress = generationProgress;
+        if (currentProgress.files.length > 0 && currentProgress.isStreaming) {
+          console.log('Stream ended without complete event, applying fallback completion');
+          
+          // Check for incomplete file at the end and try to complete it
+          const incompleteFileMatch = accumulatedCode.match(/<file path="([^"]+)">([^]*?)$/);
+          if (incompleteFileMatch) {
+            const filePath = incompleteFileMatch[1];
+            const fileContent = incompleteFileMatch[2];
+            console.log(`Found incomplete file: ${filePath}, attempting to complete it`);
+            
+            // Add the incomplete file to the accumulated code with a closing tag
+            accumulatedCode += '\n</file>';
+            
+            // Add to generation progress as well
+            setGenerationProgress(prev => {
+              const fileExt = filePath.split('.').pop() || '';
+              const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
+                              fileExt === 'css' ? 'css' :
+                              fileExt === 'json' ? 'json' :
+                              fileExt === 'html' ? 'html' : 'text';
+              
+              return {
+                ...prev,
+                files: [...prev.files, {
+                  path: filePath,
+                  content: fileContent.trim(),
+                  type: fileType,
+                  completed: true,
+                  edited: false
+                }]
+              };
+            });
+          }
+          
+          // Apply any accumulated code
+          if (accumulatedCode) {
+            const isEdit = conversationContext.appliedCode.length > 0;
+            await applyGeneratedCode(accumulatedCode, isEdit);
+          }
+          
+          setGenerationProgress(prev => ({
+            ...prev,
+            isGenerating: false,
+            isStreaming: false,
+            status: 'Complete!'
+          }));
+          
+          // Clear screenshot and preparing design states
+          setUrlScreenshot(null);
+          setIsPreparingDesign(false);
+          setTargetUrl('');
+          setScreenshotError(null);
+          setLoadingStage(null);
+          
+          setTimeout(() => {
+            setActiveTab('preview');
+          }, 1000);
+        }
+        
+        // Clear the completion timeout since we completed successfully
+        clearTimeout(completionTimeout);
       } catch (error: any) {
+        console.error('Streaming error:', error);
+        
+        // Clear the completion timeout
+        clearTimeout(completionTimeout);
+        
+        // Handle other errors normally
         addChatMessage(`Failed to clone website: ${error.message}`, 'system');
         setUrlStatus([]);
         setIsPreparingDesign(false);

@@ -46,10 +46,10 @@ export const appConfig = {
     defaultTemperature: 0.7,
     
     // Max tokens for code generation
-    maxTokens: 8000,
+    maxTokens: 800000,
     
     // Max tokens for truncation recovery
-    truncationRecoveryMaxTokens: 4000,
+    truncationRecoveryMaxTokens: 40000,
   },
   
   // Code Application Configuration
