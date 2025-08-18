@@ -74,11 +74,20 @@ declare global {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, model = 'openai/gpt-oss-20b', context, isEdit = false } = await request.json();
+    const { prompt, model = appConfig.ai.defaultModel, context, isEdit = false } = await request.json();
     
     console.log('[generate-ai-code-stream] Received request:');
     console.log('[generate-ai-code-stream] - prompt:', prompt);
+    console.log('[generate-ai-code-stream] - model (received):', model);
+    console.log('[generate-ai-code-stream] - available models:', appConfig.ai.availableModels);
+    console.log('[generate-ai-code-stream] - default model:', appConfig.ai.defaultModel);
     console.log('[generate-ai-code-stream] - isEdit:', isEdit);
+    
+    // Validate that the received model is available
+    if (!appConfig.ai.availableModels.includes(model)) {
+      console.warn(`[generate-ai-code-stream] WARNING: Received model '${model}' is not in available models list. Using default model instead.`);
+      // Don't override the model here - let it proceed to see what happens
+    }
     console.log('[generate-ai-code-stream] - context.sandboxId:', context?.sandboxId);
     console.log('[generate-ai-code-stream] - context.currentFiles:', context?.currentFiles ? Object.keys(context.currentFiles) : 'none');
     console.log('[generate-ai-code-stream] - currentFiles count:', context?.currentFiles ? Object.keys(context.currentFiles).length : 0);
@@ -141,11 +150,32 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
+    let writerClosed = false;
     
     // Function to send progress updates
     const sendProgress = async (data: any) => {
-      const message = `data: ${JSON.stringify(data)}\n\n`;
-      await writer.write(encoder.encode(message));
+      if (writerClosed) {
+        return;
+      }
+      try {
+        const message = `data: ${JSON.stringify(data)}\n\n`;
+        await writer.write(encoder.encode(message));
+      } catch (error) {
+        writerClosed = true;
+      }
+    };
+    
+    // Function to properly close the stream
+    const closeStream = async () => {
+      if (writerClosed) {
+        return;
+      }
+      try {
+        await writer.close();
+        writerClosed = true;
+      } catch (error) {
+        writerClosed = true;
+      }
     };
     
     // Start processing in background
@@ -1364,6 +1394,9 @@ It's better to have 3 complete files than 10 incomplete files.`
         
         console.log('\n\n[generate-ai-code-stream] Streaming complete.');
         
+        // Send completion signal
+        await sendProgress({ type: 'complete' });
+        
         // Send any remaining conversational text
         if (conversationalBuffer.trim()) {
           await sendProgress({ 
@@ -1696,8 +1729,15 @@ Provide the complete file content without any truncation. Include all necessary 
       } catch (error) {
         console.error('[generate-ai-code-stream] Stream processing error:', error);
         
-        // Check if it's a tool validation error
-        if ((error as any).message?.includes('tool call validation failed')) {
+        // Handle different types of errors
+        const errorName = (error as any).name || '';
+        const errorMessage = (error as Error).message || '';
+        
+        if (errorName === 'ResponseAborted' || errorMessage.includes('ResponseAborted')) {
+          console.log('[generate-ai-code-stream] Client aborted the request - this is normal when user navigates away');
+          // Don't try to send progress updates when client has disconnected
+          return;
+        } else if (errorMessage.includes('tool call validation failed')) {
           console.error('[generate-ai-code-stream] Tool call validation error - this may be due to the AI model sending incorrect parameters');
           await sendProgress({ 
             type: 'warning', 
@@ -1707,11 +1747,11 @@ Provide the complete file content without any truncation. Include all necessary 
         } else {
           await sendProgress({ 
             type: 'error', 
-            error: (error as Error).message 
+            error: errorMessage 
           });
         }
       } finally {
-        await writer.close();
+        await closeStream();
       }
     })();
     
@@ -1719,8 +1759,12 @@ Provide the complete file content without any truncation. Include all necessary 
     return new Response(stream.readable, {
       headers: {
         'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no', // Disable nginx buffering
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST',
+        'Access-Control-Allow-Headers': 'Content-Type',
       },
     });
     

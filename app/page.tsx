@@ -1878,6 +1878,10 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   }));
                 } else if (data.type === 'error') {
                   throw new Error(data.error);
+                } else if (data.type === 'complete') {
+                  // Stream completed successfully - break out of loop
+                  console.log('Chat stream completed successfully');
+                  break;
                 }
               } catch (e) {
                 console.error('Failed to parse SSE data:', e);
@@ -2727,6 +2731,10 @@ Focus on the key sections and content, making it clean and modern.`;
                   }
                 } else if (data.type === 'error') {
                   throw new Error(data.content || 'Generation failed');
+                } else if (data.type === 'complete') {
+                  // Stream completed successfully - break out of loop
+                  console.log('Stream completed successfully');
+                  break;
                 }
               } catch (parseError: any) {
                 if (!line.includes('data: [DONE]')) {

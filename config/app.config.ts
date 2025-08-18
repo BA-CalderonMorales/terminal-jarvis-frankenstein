@@ -1,6 +1,8 @@
 // Application Configuration
 // This file contains all configurable settings for the application
 
+import { getEnabledModels, getEnabledModelDisplayNames } from '../models.config';
+
 export const appConfig = {
   // E2B Sandbox Configuration
   e2b: {
@@ -27,23 +29,17 @@ export const appConfig = {
   
   // AI Model Configuration
   ai: {
-    // Default AI model
-    defaultModel: 'moonshotai/kimi-k2-instruct',
+    // Default AI model (should be one of the enabled models)
+    defaultModel: 'google/gemini-2.5-pro',
     
-    // Available models
-    availableModels: [
-      'openai/gpt-5',
-      'moonshotai/kimi-k2-instruct',
-      'anthropic/claude-sonnet-4-20250514',
-      'google/gemini-2.5-pro'
-    ],
+    // Available models (dynamically loaded from models.config.ts)
+    get availableModels() {
+      return getEnabledModels();
+    },
     
-    // Model display names
-    modelDisplayNames: {
-      'openai/gpt-5': 'GPT-5',
-      'moonshotai/kimi-k2-instruct': 'Kimi K2 Instruct',
-      'anthropic/claude-sonnet-4-20250514': 'Sonnet 4',
-      'google/gemini-2.5-pro': 'Gemini 2.5 Pro'
+    // Model display names (dynamically loaded from models.config.ts)
+    get modelDisplayNames() {
+      return getEnabledModelDisplayNames();
     },
     
     // Temperature settings for non-reasoning models

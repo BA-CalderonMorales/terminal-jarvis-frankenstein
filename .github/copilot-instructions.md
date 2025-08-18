@@ -7,6 +7,16 @@
 - **SURGICAL EDITS**: Make only minimal, targeted changes - avoid broad rewrites unless absolutely necessary
 - **PRESERVE EXISTING CODE**: When editing, include 3-5 lines of unchanged code before and after modifications for precise targeting
 
+### Terminal Management - CRITICAL ANTI-PATTERN PREVENTION
+- **NEVER INTERRUPT DEV SERVER**: ABSOLUTELY NEVER send Ctrl+C (^C) or interrupt signals to terminals running development servers (`npm run dev`, `yarn dev`, etc.)
+- **IDENTIFY ACTIVE SERVERS**: Before running any terminal commands, check if dev servers are running and preserve those terminals
+- **USE SEPARATE TERMINALS**: Always open new terminals for testing, debugging, or other commands - NEVER reuse dev server terminals
+- **NO PROCESS KILLING**: Never use `pkill`, `killall`, or similar commands that might terminate development servers
+- **SERVER PRESERVATION**: Treat running development servers as sacred - they must remain undisturbed at all costs
+- **TESTING PROTOCOLS**: When testing APIs or endpoints, use separate terminals and never interrupt ongoing development processes
+- **BACKGROUND PROCESSES**: Use `&` or separate terminals for background processes rather than interrupting active development sessions
+- **TERMINAL AWARENESS**: Always check terminal status with `get_terminal_output` before executing commands that might interfere with running processes
+
 ### Documentation Management
 - **DOCS DIRECTORY ONLY**: All documentation must be placed in the `docs/` directory
 - **NO ROOT DOCS**: Do not create or modify documentation files in the repository root (Exception: CHANGELOG.md)
