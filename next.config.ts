@@ -2,7 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  
+  output: "export",
+  images: {
+    unoptimized: true,
+  },
+
   // Disable hydration warnings in development for browser extension compatibility
   webpack: (config, { dev }) => {
     if (dev) {
