@@ -231,7 +231,7 @@ export default function AISandboxPage() {
       }
       captureUrlScreenshot(screenshotUrl);
     }
-  }, [showHomeScreen, homeUrlInput]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showHomeScreen, homeUrlInput]);
 
   // URL validation with debouncing
   const validateUrl = async (url: string) => {
@@ -303,7 +303,7 @@ export default function AISandboxPage() {
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (chatMessagesRef.current) {
