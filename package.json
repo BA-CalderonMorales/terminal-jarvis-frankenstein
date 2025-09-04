@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "export": "next export",
     "start": "next start",
     "lint": "next lint",
     "test:integration": "node tests/e2b-integration.test.js",
