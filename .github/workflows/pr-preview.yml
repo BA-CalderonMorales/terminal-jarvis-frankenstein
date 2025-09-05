@@ -2,7 +2,9 @@ name: PR Preview
 
 on:
   pull_request:
-    branches: [ main, codex/* ]
+    branches: 
+      - main
+      - 'codex/*'
 
 permissions:
   contents: read
