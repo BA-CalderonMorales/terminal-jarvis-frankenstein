@@ -3247,11 +3247,7 @@ Focus on the key sections and content, making it clean and modern.`;
       
       <div className="bg-card px-4 py-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <img
-            src="/firecrawl-logo-with-fire.webp"
-            alt="Firecrawl"
-            className="h-8 w-auto"
-          />
+          <ThemeLogo />
         </div>
         <div className="flex items-center gap-2">
           {/* Model Selector - Left side */}
