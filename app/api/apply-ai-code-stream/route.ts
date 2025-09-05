@@ -126,6 +126,9 @@ function parseAIResponse(response: string): ParsedResponse {
   
   // Also parse markdown code blocks with file paths
   const markdownFileRegex = /```(?:file )?path="([^"]+)"\n([\s\S]*?)```/g;
+  
+  // Parse CSS code blocks specifically
+  const cssBlockRegex = /```css\n([\s\S]*?)```/g;
   while ((match = markdownFileRegex.exec(response)) !== null) {
     const filePath = match[1];
     const content = match[2].trim();
@@ -141,6 +144,19 @@ function parseAIResponse(response: string): ParsedResponse {
         sections.packages.push(pkg);
         console.log(`[apply-ai-code-stream] 📦 Package detected from imports: ${pkg}`);
       }
+    }
+  }
+  
+  // Parse CSS blocks and add them as index.css or styles.css
+  while ((match = cssBlockRegex.exec(response)) !== null) {
+    const content = match[1].trim();
+    const cssPath = 'src/index.css'; // Default CSS file path
+    
+    if (!sections.files.some(f => f.path === cssPath)) {
+      sections.files.push({
+        path: cssPath,
+        content: content
+      });
     }
   }
   
@@ -183,15 +199,23 @@ function parseAIResponse(response: string): ParsedResponse {
     }
   }
   
-  // Also try to parse if the response contains raw JSX/JS code blocks
-  const codeBlockRegex = /```(?:jsx?|tsx?|javascript|typescript)?\n([\s\S]*?)```/g;
+  // Also try to parse if the response contains raw JSX/JS/CSS code blocks
+  const codeBlockRegex = /```(?:jsx?|tsx?|javascript|typescript|css)?\n([\s\S]*?)```/g;
   while ((match = codeBlockRegex.exec(response)) !== null) {
     const content = match[1].trim();
-    // Try to detect the file name from comments or context
-    const fileNameMatch = content.match(/\/\/\s*(?:File:|Component:)\s*([^\n]+)/);
+    
+    // Try to detect the file name from comments or context (support both JS and CSS comment styles)
+    const fileNameMatch = content.match(/(?:\/\/\s*(?:File:|Component:)\s*([^\n]+)|\/\*\s*(?:File:|Component:)\s*([^\*]+)\*\/)/);
     if (fileNameMatch) {
-      const fileName = fileNameMatch[1].trim();
-      const filePath = fileName.includes('/') ? fileName : `src/components/${fileName}`;
+      const fileName = (fileNameMatch[1] || fileNameMatch[2]).trim();
+      let filePath;
+      
+      // Handle different file types appropriately
+      if (fileName.endsWith('.css')) {
+        filePath = fileName.includes('/') ? fileName : `src/${fileName}`;
+      } else {
+        filePath = fileName.includes('/') ? fileName : `src/components/${fileName}`;
+      }
       
       // Don't add duplicate files
       if (!sections.files.some(f => f.path === filePath)) {
@@ -200,11 +224,13 @@ function parseAIResponse(response: string): ParsedResponse {
           content: content
         });
         
-        // Extract packages
-        const filePackages = extractPackagesFromCode(content);
-        for (const pkg of filePackages) {
-          if (!sections.packages.includes(pkg)) {
-            sections.packages.push(pkg);
+        // Extract packages (only for JS/TS files)
+        if (!fileName.endsWith('.css')) {
+          const filePackages = extractPackagesFromCode(content);
+          for (const pkg of filePackages) {
+            if (!sections.packages.includes(pkg)) {
+              sections.packages.push(pkg);
+            }
           }
         }
       }

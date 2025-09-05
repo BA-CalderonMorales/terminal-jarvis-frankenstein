@@ -22,6 +22,7 @@ import {
 } from '@/lib/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import CodeApplicationProgress, { type CodeApplicationState } from '@/components/CodeApplicationProgress';
+import { ThemeLogo } from '@/app/components/theme-logo';
 import { normalizeUrl, quickValidateUrl, testUrlAccessibility } from '@/lib/url-validator';
 
 interface SandboxData {

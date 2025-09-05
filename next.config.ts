@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  output: "export",
+  // Removed output: "export" as it's incompatible with API routes
+  // output: "export",
   images: {
     unoptimized: true,
   },
