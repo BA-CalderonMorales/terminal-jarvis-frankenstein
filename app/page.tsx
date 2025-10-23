@@ -2529,7 +2529,10 @@ Focus on the key sections and content, making it clean and modern while preservi
       setUrlInput(finalUrl);
       setUrlOverlayVisible(false);
       setUrlStatus(['Scraping website content...']);
-      
+
+      // Declare completionTimeout here so it's accessible in both try and catch blocks
+      let completionTimeout: NodeJS.Timeout | null = null;
+
       try {
         const scrapeResponse = await fetch('/api/scrape-url-enhanced', {
           method: 'POST',
@@ -2626,13 +2629,13 @@ Focus on the key sections and content, making it clean and modern.`;
         
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        
+
         let accumulatedCode = '';
         let isCollectingFiles = false;
         let filesBuffer = '';
-        
+
         // Set up a completion timeout as a failsafe
-        const completionTimeout = setTimeout(() => {
+        completionTimeout = setTimeout(() => {
           console.log('Stream timeout reached, forcing completion...');
           
           // Get the current state
@@ -2889,12 +2892,12 @@ Focus on the key sections and content, making it clean and modern.`;
         }
         
         // Clear the completion timeout since we completed successfully
-        clearTimeout(completionTimeout);
+        if (completionTimeout) clearTimeout(completionTimeout);
       } catch (error: any) {
         console.error('Streaming error:', error);
         
         // Clear the completion timeout
-        clearTimeout(completionTimeout);
+        if (completionTimeout) clearTimeout(completionTimeout);
         
         // Handle other errors normally
         addChatMessage(`Failed to clone website: ${error.message}`, 'system');
