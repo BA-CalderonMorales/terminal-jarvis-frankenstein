@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import CodeApplicationProgress, { type CodeApplicationState } from '@/components/CodeApplicationProgress';
 import { normalizeUrl, quickValidateUrl, testUrlAccessibility } from '@/lib/url-validator';
+import { ThemeLogo } from './components/theme-logo';
 
 interface SandboxData {
   sandboxId: string;

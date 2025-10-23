@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import HydrationErrorHandler from "./components/HydrationErrorHandler";
 import { Providers } from "./context/Providers";
 
-const inter = Inter({ subsets: ["latin"] });
+// Use system fonts instead of Google Fonts for better CI/CD compatibility
+const fontClass = "font-sans";
 
 export const metadata: Metadata = {
   title: "Terminal Jarvis Frankenstein",
@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={fontClass}>
         <HydrationErrorHandler />
         <Providers>
           {children}
